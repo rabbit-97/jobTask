@@ -8,9 +8,18 @@ export const signup = async (req, res) => {
   try {
     const { username, password, nickname } = req.body;
 
+    // 필수 필드 검증
+    if (!username || !password || !nickname) {
+      return res.status(400).json({ 
+        message: "모든 필수 필드를 입력해주세요." 
+      });
+    }
+
     // 사용자 중복 확인
     if (users.has(username)) {
-      return res.status(400).json({ message: "이미 존재하는 사용자입니다." });
+      return res.status(400).json({ 
+        message: "이미 존재하는 사용자입니다." 
+      });
     }
 
     // 비밀번호 해시화
@@ -40,6 +49,13 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { username, password } = req.body;
+
+    // 필수 필드 검증
+    if (!username || !password) {
+      return res.status(400).json({ 
+        message: "아이디와 비밀번호를 모두 입력해주세요." 
+      });
+    }
 
     // 사용자 찾기
     const user = users.get(username);

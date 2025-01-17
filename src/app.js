@@ -40,10 +40,12 @@ app.get("/", (req, res) => {
   res.json({ message: "서버가 정상적으로 실행중입니다." });
 });
 
-const PORT = process.env.PORT || 3000;
+// 테스트 환경이 아닐 때만 서버 시작
+if (process.env.NODE_ENV !== 'test') {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`서버가 포트 ${PORT}에서 실행중입니다.`);
+  });
+}
 
-const server = app.listen(PORT, () => {
-  console.log(`서버가 포트 ${PORT}에서 실행중입니다.`);
-});
-
-export default server;
+export default app;

@@ -1,27 +1,53 @@
 import jwt from "jsonwebtoken";
 
-const generateAccessToken = (user) => {
+// Access Token 생성
+export const generateAccessToken = (user) => {
   return jwt.sign(
     {
-      id: user.id,
+      id: user._id,
       username: user.username,
-      authorities: user.authorities,
+      authorities: user.authorities
     },
-    process.env.JWT_SECRET,
-    { expiresIn: "1h" }
+    process.env.JWT_ACCESS_SECRET,
+    { expiresIn: '1h' }
   );
 };
 
-const generateRefreshToken = (user) => {
-  return jwt.sign({ id: user.id }, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" });
+// Refresh Token 생성
+export const generateRefreshToken = (user) => {
+  return jwt.sign(
+    {
+      id: user._id,
+      username: user.username
+    },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: '14d' }
+  );
 };
 
-const verifyToken = (token, secret) => {
+// Access Token 검증
+export const verifyAccessToken = (token) => {
   try {
-    return jwt.verify(token, secret);
+    return jwt.verify(token, process.env.JWT_ACCESS_SECRET);
   } catch (error) {
     return null;
   }
 };
 
-export { generateAccessToken, generateRefreshToken, verifyToken };
+// Refresh Token 검증
+export const verifyRefreshToken = (token) => {
+  try {
+    return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+  } catch (error) {
+    return null;
+  }
+};
+
+// Authorization 헤더에서 토큰 추출
+export const extractTokenFromHeader = (req) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  return authHeader.split(' ')[1];
+};
