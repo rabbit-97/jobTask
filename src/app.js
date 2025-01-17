@@ -2,9 +2,15 @@ import express from "express";
 import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
+import connectDB from "./config/database.js";
 import authRouter from "./routes/auth.js";
 
 dotenv.config();
+
+// 테스트 환경이 아닐 때만 데이터베이스 연결
+if (process.env.NODE_ENV !== 'test') {
+  connectDB();
+}
 
 const app = express();
 
@@ -38,6 +44,15 @@ app.use("/auth", authRouter);
 
 app.get("/", (req, res) => {
   res.json({ message: "서버가 정상적으로 실행중입니다." });
+});
+
+// 글로벌 에러 핸들러
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ 
+    message: "서버 오류가 발생했습니다.",
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
 });
 
 // 테스트 환경이 아닐 때만 서버 시작

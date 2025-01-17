@@ -1,3 +1,35 @@
+# Dependencies
 node_modules/
-.idea/
+
+# Environment variables
 .env
+.env.test
+.env.local
+.env.*
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# Testing
+coverage/
+
+# Production build
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

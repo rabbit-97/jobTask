@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as authController from "../controllers/authController.js";
+import { verifyRefreshToken } from "../middleware/authMiddleware.js";
 
 const router = Router();
 
@@ -89,14 +90,57 @@ router.post("/signup", authController.signup);
  *             schema:
  *               type: object
  *               properties:
- *                 token:
+ *                 accessToken:
  *                   type: string
- *                   description: JWT 토큰
+ *                   description: JWT 액세스 토큰
+ *                 refreshToken:
+ *                   type: string
+ *                   description: JWT 리프레시 토큰
  *       401:
  *         description: 인증 실패
  *       500:
  *         description: 서버 오류
  */
 router.post("/login", authController.login);
+
+/**
+ * @swagger
+ * /auth/refresh:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: 액세스 토큰 갱신
+ *     description: 리프레시 토큰을 사용하여 새로운 액세스 토큰을 발급받습니다.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 description: 리프레시 토큰
+ *     responses:
+ *       200:
+ *         description: 토큰 갱신 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
+ *                   description: 새로 발급된 액세스 토큰
+ *       401:
+ *         description: 유효하지 않은 리프레시 토큰
+ *       403:
+ *         description: 만료된 리프레시 토큰
+ */
+router.post("/refresh", verifyRefreshToken, authController.refresh);
 
 export default router;
