@@ -3,6 +3,7 @@ import app from '../app.js';
 import User from '../models/User.js';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import bcrypt from 'bcrypt';
 
 let mongoServer;
 
@@ -166,6 +167,97 @@ describe('Auth API Tests', () => {
 
       expect(response.body).toHaveProperty('code', 'INVALID_REFRESH_TOKEN');
       expect(response.body).toHaveProperty('message', '유효하지 않은 리프레시 토큰입니다.');
+    });
+  });
+
+  describe('권한 관리 테스트', () => {
+    let adminToken;
+    let userToken;
+
+    beforeEach(async () => {
+      // 일반 사용자 생성
+      await request(app)
+        .post('/auth/signup')
+        .send(validUser);
+
+      // 관리자 생성 (첫 번째 관리자)
+      const adminUser = {
+        username: 'admin',
+        password: 'admin1234',
+        nickname: 'Admin',
+        authorities: [
+          { authorityName: 'ROLE_USER' },
+          { authorityName: 'ROLE_ADMIN' }
+        ]
+      };
+      await User.create({
+        ...adminUser,
+        password: await bcrypt.hash(adminUser.password, 10)
+      });
+
+      // 관리자 로그인
+      const adminLoginResponse = await request(app)
+        .post('/auth/login')
+        .send({
+          username: adminUser.username,
+          password: adminUser.password
+        });
+      adminToken = adminLoginResponse.body.token;
+
+      // 일반 사용자 로그인
+      const userLoginResponse = await request(app)
+        .post('/auth/login')
+        .send({
+          username: validUser.username,
+          password: validUser.password
+        });
+      userToken = userLoginResponse.body.token;
+    });
+
+    describe('관리자 계정 생성 테스트', () => {
+      const newAdminUser = {
+        username: 'newadmin',
+        password: 'admin1234',
+        nickname: 'NewAdmin'
+      };
+
+      it('관리자가 새로운 관리자 계정 생성 성공', async () => {
+        const response = await request(app)
+          .post('/auth/admin')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send(newAdminUser)
+          .expect(201);
+
+        expect(response.body).toHaveProperty('username', newAdminUser.username);
+        expect(response.body).toHaveProperty('nickname', newAdminUser.nickname);
+        expect(response.body.authorities).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ authorityName: 'ROLE_USER' }),
+            expect.objectContaining({ authorityName: 'ROLE_ADMIN' })
+          ])
+        );
+      });
+
+      it('일반 사용자가 관리자 계정 생성 시도시 실패', async () => {
+        const response = await request(app)
+          .post('/auth/admin')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send(newAdminUser)
+          .expect(403);
+
+        expect(response.body).toHaveProperty('code', 'INSUFFICIENT_PERMISSIONS');
+        expect(response.body).toHaveProperty('message', '접근 권한이 없습니다.');
+      });
+
+      it('인증 없이 관리자 계정 생성 시도시 실패', async () => {
+        const response = await request(app)
+          .post('/auth/admin')
+          .send(newAdminUser)
+          .expect(401);
+
+        expect(response.body).toHaveProperty('code', 'NO_TOKEN');
+        expect(response.body).toHaveProperty('message', '인증 토큰이 필요합니다.');
+      });
     });
   });
 }); 

@@ -143,3 +143,56 @@ export const refresh = async (req, res) => {
     });
   }
 };
+
+export const createAdmin = async (req, res) => {
+  try {
+    const { username, password, nickname } = req.body;
+
+    // 필수 필드 검증
+    if (!username || !password || !nickname) {
+      return res.status(400).json({
+        code: 'MISSING_FIELD',
+        message: '모든 필드를 입력해주세요.'
+      });
+    }
+
+    // 기존 사용자 확인
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(409).json({
+        code: 'USERNAME_EXISTS',
+        message: '이미 존재하는 사용자 이름입니다.'
+      });
+    }
+
+    // 비밀번호 해싱
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // 관리자 사용자 생성
+    const user = await User.create({
+      username,
+      password: hashedPassword,
+      nickname,
+      authorities: [
+        { authorityName: 'ROLE_USER' },
+        { authorityName: 'ROLE_ADMIN' }
+      ]
+    });
+
+    // 응답 데이터 구성
+    const responseData = {
+      username: user.username,
+      nickname: user.nickname,
+      authorities: user.authorities
+    };
+
+    res.status(201).json(responseData);
+  } catch (error) {
+    console.error('관리자 계정 생성 에러:', error);
+    res.status(500).json({
+      code: 'SERVER_ERROR',
+      message: '서버 오류가 발생했습니다.'
+    });
+  }
+};
