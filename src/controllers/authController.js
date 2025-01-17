@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
-import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js";
+import { generateAccessToken, generateRefreshToken, extractTokenFromHeader } from "../utils/jwt.js";
 import User from "../models/User.js";
+import TokenBlacklist from "../models/TokenBlacklist.js";
 
 export const signup = async (req, res) => {
   try {
@@ -190,6 +191,44 @@ export const createAdmin = async (req, res) => {
     res.status(201).json(responseData);
   } catch (error) {
     console.error('관리자 계정 생성 에러:', error);
+    res.status(500).json({
+      code: 'SERVER_ERROR',
+      message: '서버 오류가 발생했습니다.'
+    });
+  }
+};
+
+export const logout = async (req, res) => {
+  try {
+    const token = extractTokenFromHeader(req);
+    if (!token) {
+      return res.status(400).json({
+        code: 'NO_TOKEN',
+        message: '토큰이 필요합니다.'
+      });
+    }
+
+    // 현재 토큰을 블랙리스트에 추가
+    await TokenBlacklist.create({
+      token,
+      reason: 'LOGOUT'
+    });
+
+    // 사용자의 리프레시 토큰 제거
+    if (req.user) {
+      const user = await User.findById(req.user._id);
+      if (user) {
+        user.refreshToken = null;
+        await user.save();
+      }
+    }
+
+    res.json({
+      code: 'SUCCESS',
+      message: '로그아웃 되었습니다.'
+    });
+  } catch (error) {
+    console.error('로그아웃 에러:', error);
     res.status(500).json({
       code: 'SERVER_ERROR',
       message: '서버 오류가 발생했습니다.'

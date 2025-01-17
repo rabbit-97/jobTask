@@ -260,4 +260,82 @@ describe('Auth API Tests', () => {
       });
     });
   });
+
+  describe('로그아웃 및 토큰 블랙리스트 테스트', () => {
+    let accessToken;
+    let refreshToken;
+
+    beforeEach(async () => {
+      // 회원가입
+      await request(app)
+        .post('/auth/signup')
+        .send(validUser);
+
+      // 로그인
+      const loginResponse = await request(app)
+        .post('/auth/login')
+        .send({
+          username: validUser.username,
+          password: validUser.password,
+        });
+      
+      accessToken = loginResponse.body.token;
+      const user = await User.findOne({ username: validUser.username });
+      refreshToken = user.refreshToken;
+    });
+
+    it('로그아웃 성공', async () => {
+      const response = await request(app)
+        .post('/auth/logout')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('code', 'SUCCESS');
+      expect(response.body).toHaveProperty('message', '로그아웃 되었습니다.');
+
+      // 로그아웃 후 토큰으로 접근 시도
+      const protectedResponse = await request(app)
+        .post('/auth/admin')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          username: 'newadmin',
+          password: 'admin1234',
+          nickname: 'NewAdmin'
+        })
+        .expect(401);
+
+      expect(protectedResponse.body).toHaveProperty('code', 'INVALID_TOKEN');
+    });
+
+    it('로그아웃 후 리프레시 토큰 사용 실패', async () => {
+      // 먼저 로그아웃
+      await request(app)
+        .post('/auth/logout')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      // 로그아웃 후 리프레시 토큰으로 새 토큰 발급 시도
+      const response = await request(app)
+        .post('/auth/refresh')
+        .send({ refreshToken })
+        .expect(401);
+
+      expect(response.body).toHaveProperty('code', 'INVALID_REFRESH_TOKEN');
+    });
+
+    it('만료된 토큰 블랙리스트 처리', async () => {
+      // 토큰 만료 시뮬레이션 (실제로는 15분 기다려야 함)
+      const expiredTokenResponse = await request(app)
+        .post('/auth/admin')
+        .set('Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMzQ1Njc4OTAiLCJ1c2VybmFtZSI6InRlc3QiLCJpYXQiOjE1MTYyMzkwMjIsImV4cCI6MTUxNjIzOTAyM30.1234567890')
+        .send({
+          username: 'newadmin',
+          password: 'admin1234',
+          nickname: 'NewAdmin'
+        })
+        .expect(401);
+
+      expect(expiredTokenResponse.body).toHaveProperty('code', 'INVALID_TOKEN');
+    });
+  });
 }); 

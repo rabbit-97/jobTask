@@ -1,17 +1,26 @@
-import { verifyAccessToken, verifyRefreshToken as verifyRefreshTokenUtil } from '../utils/jwt.js';
+import { verifyAccessToken, verifyRefreshToken as verifyRefreshTokenUtil, extractTokenFromHeader } from '../utils/jwt.js';
 import User from '../models/User.js';
+import TokenBlacklist from '../models/TokenBlacklist.js';
 
 export const verifyToken = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = extractTokenFromHeader(req);
+    if (!token) {
       return res.status(401).json({ 
         code: 'NO_TOKEN',
         message: '인증 토큰이 필요합니다.' 
       });
     }
 
-    const token = authHeader.split(' ')[1];
+    // 블랙리스트 확인
+    const isBlacklisted = await TokenBlacklist.findOne({ token });
+    if (isBlacklisted) {
+      return res.status(401).json({
+        code: 'INVALID_TOKEN',
+        message: '유효하지 않은 토큰입니다.'
+      });
+    }
+
     try {
       const decoded = verifyAccessToken(token);
       // 사용자 정보 검증
@@ -26,6 +35,12 @@ export const verifyToken = async (req, res, next) => {
       next();
     } catch (error) {
       if (error.message === 'TOKEN_EXPIRED') {
+        // 만료된 토큰을 블랙리스트에 추가
+        await TokenBlacklist.create({
+          token,
+          reason: 'EXPIRED'
+        });
+        
         return res.status(401).json({ 
           code: 'TOKEN_EXPIRED',
           message: '만료된 토큰입니다.' 
@@ -62,12 +77,27 @@ export const verifyRefreshToken = async (req, res, next) => {
       });
     }
 
+    // 블랙리스트 확인
+    const isBlacklisted = await TokenBlacklist.findOne({ token: refreshToken });
+    if (isBlacklisted) {
+      return res.status(401).json({
+        code: 'INVALID_REFRESH_TOKEN',
+        message: '유효하지 않은 리프레시 토큰입니다.'
+      });
+    }
+
     try {
       const decoded = verifyRefreshTokenUtil(refreshToken);
       
       // DB에서 사용자와 저장된 리프레시 토큰 확인
       const user = await User.findById(decoded.id);
       if (!user || user.refreshToken !== refreshToken) {
+        // 유효하지 않은 리프레시 토큰을 블랙리스트에 추가
+        await TokenBlacklist.create({
+          token: refreshToken,
+          reason: 'REFRESH'
+        });
+
         return res.status(401).json({ 
           code: 'INVALID_REFRESH_TOKEN',
           message: '유효하지 않은 리프레시 토큰입니다.' 
@@ -78,6 +108,12 @@ export const verifyRefreshToken = async (req, res, next) => {
       next();
     } catch (error) {
       if (error.message === 'REFRESH_TOKEN_EXPIRED') {
+        // 만료된 리프레시 토큰을 블랙리스트에 추가
+        await TokenBlacklist.create({
+          token: refreshToken,
+          reason: 'EXPIRED'
+        });
+
         return res.status(403).json({ 
           code: 'REFRESH_TOKEN_EXPIRED',
           message: '만료된 리프레시 토큰입니다.' 

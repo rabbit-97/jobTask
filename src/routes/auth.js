@@ -1,5 +1,5 @@
 import express from 'express';
-import { signup, login, refresh, createAdmin } from '../controllers/authController.js';
+import { signup, login, refresh, createAdmin, logout } from '../controllers/authController.js';
 import { verifyToken, verifyRefreshToken } from '../middleware/authMiddleware.js';
 import { isAdmin } from '../middleware/roleMiddleware.js';
 
@@ -125,5 +125,21 @@ router.post('/refresh', verifyRefreshToken, refresh);
  *         description: 권한 없음
  */
 router.post('/admin', verifyToken, isAdmin, createAdmin);
+
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     tags: [Auth]
+ *     summary: 로그아웃
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 로그아웃 성공
+ *       401:
+ *         description: 인증되지 않은 요청
+ */
+router.post('/logout', verifyToken, logout);
 
 export default router;
