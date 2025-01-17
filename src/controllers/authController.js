@@ -8,89 +8,99 @@ export const signup = async (req, res) => {
 
     // 필수 필드 검증
     if (!username || !password || !nickname) {
-      return res.status(400).json({ 
-        message: "모든 필수 필드를 입력해주세요." 
+      return res.status(400).json({
+        code: 'MISSING_FIELD',
+        message: '모든 필드를 입력해주세요.'
       });
     }
 
-    // 사용자 중복 확인
+    // 기존 사용자 확인
     const existingUser = await User.findOne({ username });
     if (existingUser) {
-      return res.status(400).json({ 
-        message: "이미 존재하는 사용자입니다." 
+      return res.status(409).json({
+        code: 'USERNAME_EXISTS',
+        message: '이미 존재하는 사용자 이름입니다.'
       });
     }
 
-    // 비밀번호 해시화
+    // 비밀번호 해싱
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    console.log('회원가입 비밀번호 해시:', { password, hashedPassword });
 
     // 새 사용자 생성
-    const user = new User({
+    const user = await User.create({
       username,
       password: hashedPassword,
       nickname,
-      authorities: [{ authorityName: "ROLE_USER" }]
+      authorities: [{ authorityName: 'ROLE_USER' }]
     });
 
-    await user.save();
+    // 응답 데이터 구성
+    const responseData = {
+      username: user.username,
+      nickname: user.nickname,
+      authorities: user.authorities
+    };
 
-    // 응답에서 비밀번호 제외
-    const userResponse = user.toObject();
-    delete userResponse.password;
-    delete userResponse.refreshToken;
-
-    res.status(201).json(userResponse);
+    res.status(201).json(responseData);
   } catch (error) {
-    console.error("회원가입 에러:", error);
-    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+    console.error('회원가입 에러:', error);
+    res.status(500).json({
+      code: 'SERVER_ERROR',
+      message: '서버 오류가 발생했습니다.'
+    });
   }
 };
 
 export const login = async (req, res) => {
   try {
     const { username, password } = req.body;
-    console.log('로그인 시도:', { username });
 
     // 필수 필드 검증
     if (!username || !password) {
-      return res.status(400).json({ 
-        message: "아이디와 비밀번호를 모두 입력해주세요." 
+      return res.status(400).json({
+        code: 'MISSING_FIELD',
+        message: '사용자 이름과 비밀번호를 모두 입력해주세요.'
       });
     }
 
     // 사용자 찾기
     const user = await User.findOne({ username });
-    console.log('사용자 찾기 결과:', { found: !!user });
-    
     if (!user) {
-      return res.status(401).json({ message: "잘못된 인증 정보입니다." });
+      return res.status(401).json({
+        code: 'INVALID_CREDENTIALS',
+        message: '잘못된 사용자 이름 또는 비밀번호입니다.'
+      });
     }
 
-    // 비밀번호 확인
+    // 비밀번호 검증
     const isValidPassword = await user.comparePassword(password);
-    console.log('비밀번호 확인 결과:', { isValidPassword });
-    
     if (!isValidPassword) {
-      return res.status(401).json({ message: "잘못된 인증 정보입니다." });
+      return res.status(401).json({
+        code: 'INVALID_CREDENTIALS',
+        message: '잘못된 사용자 이름 또는 비밀번호입니다.'
+      });
     }
 
     // 토큰 생성
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // Refresh Token을 DB에 저장
+    // 리프레시 토큰 저장
     user.refreshToken = refreshToken;
+    user.lastLogin = new Date();
     await user.save();
 
-    res.json({ 
-      accessToken,
-      refreshToken
+    // 응답 데이터 구성
+    res.json({
+      token: accessToken
     });
   } catch (error) {
-    console.error("로그인 에러:", error);
-    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+    console.error('로그인 에러:', error);
+    res.status(500).json({
+      code: 'SERVER_ERROR',
+      message: '서버 오류가 발생했습니다.'
+    });
   }
 };
 
@@ -99,13 +109,19 @@ export const refresh = async (req, res) => {
     const { refreshToken } = req.body;
     
     if (!refreshToken) {
-      return res.status(400).json({ message: '리프레시 토큰이 필요합니다.' });
+      return res.status(400).json({ 
+        code: 'NO_REFRESH_TOKEN',
+        message: '리프레시 토큰이 필요합니다.' 
+      });
     }
 
     // 토큰 검증 및 사용자 정보 가져오기
     const user = await User.findOne({ refreshToken });
     if (!user) {
-      return res.status(401).json({ message: '유효하지 않은 리프레시 토큰입니다.' });
+      return res.status(401).json({ 
+        code: 'INVALID_REFRESH_TOKEN',
+        message: '유효하지 않은 리프레시 토큰입니다.' 
+      });
     }
 
     // 새로운 토큰 발급
@@ -117,11 +133,13 @@ export const refresh = async (req, res) => {
     await user.save();
 
     res.json({
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken
+      token: newAccessToken
     });
   } catch (error) {
     console.error("토큰 갱신 에러:", error);
-    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+    res.status(500).json({ 
+      code: 'SERVER_ERROR',
+      message: "서버 오류가 발생했습니다." 
+    });
   }
 };

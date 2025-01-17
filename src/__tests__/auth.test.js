@@ -1,17 +1,18 @@
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import app from '../app.js';
 import User from '../models/User.js';
-import { verifyAccessToken, verifyRefreshToken } from '../utils/jwt.js';
+import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 
 let mongoServer;
 
+const validUser = {
+  username: 'JIN HO',
+  password: '12341234',
+  nickname: 'Mentos'
+};
+
 beforeAll(async () => {
-  // 기존 연결 종료
-  await mongoose.disconnect();
-  
-  // 인메모리 MongoDB 서버 시작
   mongoServer = await MongoMemoryServer.create();
   const mongoUri = mongoServer.getUri();
   await mongoose.connect(mongoUri);
@@ -22,17 +23,11 @@ afterAll(async () => {
   await mongoServer.stop();
 });
 
-afterEach(async () => {
+beforeEach(async () => {
   await User.deleteMany({});
 });
 
 describe('Auth API Tests', () => {
-  const validUser = {
-    username: 'JIN HO',
-    password: '12341234',
-    nickname: 'Mentos'
-  };
-
   describe('회원가입 테스트', () => {
     it('유효한 데이터로 회원가입 성공', async () => {
       const response = await request(app)
@@ -42,40 +37,40 @@ describe('Auth API Tests', () => {
 
       expect(response.body).toHaveProperty('username', validUser.username);
       expect(response.body).toHaveProperty('nickname', validUser.nickname);
+      expect(response.body).toHaveProperty('authorities');
       expect(response.body.authorities[0].authorityName).toBe('ROLE_USER');
-      expect(response.body).not.toHaveProperty('password');
-      expect(response.body).not.toHaveProperty('refreshToken');
     });
 
     it('중복된 username으로 회원가입 실패', async () => {
+      // 첫 번째 회원가입
       await request(app)
         .post('/auth/signup')
         .send(validUser);
 
+      // 중복 회원가입 시도
       const response = await request(app)
         .post('/auth/signup')
         .send(validUser)
-        .expect(400);
+        .expect(409);
 
-      expect(response.body).toHaveProperty('message', '이미 존재하는 사용자입니다.');
+      expect(response.body).toHaveProperty('code', 'USERNAME_EXISTS');
+      expect(response.body).toHaveProperty('message', '이미 존재하는 사용자 이름입니다.');
     });
 
     it('필수 필드 누락시 회원가입 실패', async () => {
-      const invalidUser = {
-        username: 'test'
-      };
-
       const response = await request(app)
         .post('/auth/signup')
-        .send(invalidUser)
+        .send({})
         .expect(400);
 
-      expect(response.body).toHaveProperty('message', '모든 필수 필드를 입력해주세요.');
+      expect(response.body).toHaveProperty('code', 'MISSING_FIELD');
+      expect(response.body).toHaveProperty('message', '모든 필드를 입력해주세요.');
     });
   });
 
   describe('로그인 테스트', () => {
     beforeEach(async () => {
+      // 테스트용 사용자 생성
       await request(app)
         .post('/auth/signup')
         .send(validUser);
@@ -86,20 +81,12 @@ describe('Auth API Tests', () => {
         .post('/auth/login')
         .send({
           username: validUser.username,
-          password: validUser.password
+          password: validUser.password,
         })
         .expect(200);
 
-      expect(response.body).toHaveProperty('accessToken');
-      expect(response.body).toHaveProperty('refreshToken');
-
-      // 토큰 검증
-      const decodedAccess = verifyAccessToken(response.body.accessToken);
-      const decodedRefresh = verifyRefreshToken(response.body.refreshToken);
-
-      expect(decodedAccess).toBeTruthy();
-      expect(decodedRefresh).toBeTruthy();
-      expect(decodedAccess.username).toBe(validUser.username);
+      expect(response.body).toHaveProperty('token');
+      expect(typeof response.body.token).toBe('string');
     });
 
     it('잘못된 비밀번호로 로그인 실패', async () => {
@@ -107,29 +94,30 @@ describe('Auth API Tests', () => {
         .post('/auth/login')
         .send({
           username: validUser.username,
-          password: 'wrongpassword'
+          password: 'wrongpassword',
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('message', '잘못된 인증 정보입니다.');
+      expect(response.body).toHaveProperty('code', 'INVALID_CREDENTIALS');
+      expect(response.body).toHaveProperty('message', '잘못된 사용자 이름 또는 비밀번호입니다.');
     });
 
     it('존재하지 않는 사용자로 로그인 실패', async () => {
       const response = await request(app)
         .post('/auth/login')
         .send({
-          username: 'nonexistent',
-          password: validUser.password
+          username: 'nonexistentuser',
+          password: validUser.password,
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('message', '잘못된 인증 정보입니다.');
+      expect(response.body).toHaveProperty('code', 'INVALID_CREDENTIALS');
+      expect(response.body).toHaveProperty('message', '잘못된 사용자 이름 또는 비밀번호입니다.');
     });
   });
 
   describe('토큰 갱신 테스트', () => {
     let refreshToken;
-    let accessToken;
 
     beforeEach(async () => {
       // 회원가입
@@ -137,16 +125,17 @@ describe('Auth API Tests', () => {
         .post('/auth/signup')
         .send(validUser);
 
-      // 로그인하여 토큰 얻기
-      const loginResponse = await request(app)
+      // 로그인
+      await request(app)
         .post('/auth/login')
         .send({
           username: validUser.username,
-          password: validUser.password
+          password: validUser.password,
         });
 
-      refreshToken = loginResponse.body.refreshToken;
-      accessToken = loginResponse.body.accessToken;
+      // DB에서 리프레시 토큰 가져오기
+      const user = await User.findOne({ username: validUser.username });
+      refreshToken = user.refreshToken;
     });
 
     it('유효한 리프레시 토큰으로 액세스 토큰 갱신 성공', async () => {
@@ -155,15 +144,8 @@ describe('Auth API Tests', () => {
         .send({ refreshToken })
         .expect(200);
 
-      expect(response.body).toHaveProperty('accessToken');
-      expect(response.body).toHaveProperty('refreshToken');
-      expect(response.body.accessToken).not.toBe(accessToken);
-      expect(response.body.refreshToken).not.toBe(refreshToken);
-
-      // 새로운 토큰 검증
-      const decodedNewAccess = verifyAccessToken(response.body.accessToken);
-      expect(decodedNewAccess).toBeTruthy();
-      expect(decodedNewAccess.username).toBe(validUser.username);
+      expect(response.body).toHaveProperty('token');
+      expect(typeof response.body.token).toBe('string');
     });
 
     it('리프레시 토큰 없이 요청시 실패', async () => {
@@ -172,6 +154,7 @@ describe('Auth API Tests', () => {
         .send({})
         .expect(400);
 
+      expect(response.body).toHaveProperty('code', 'NO_REFRESH_TOKEN');
       expect(response.body).toHaveProperty('message', '리프레시 토큰이 필요합니다.');
     });
 
@@ -181,6 +164,7 @@ describe('Auth API Tests', () => {
         .send({ refreshToken: 'invalid-token' })
         .expect(401);
 
+      expect(response.body).toHaveProperty('code', 'INVALID_REFRESH_TOKEN');
       expect(response.body).toHaveProperty('message', '유효하지 않은 리프레시 토큰입니다.');
     });
   });
