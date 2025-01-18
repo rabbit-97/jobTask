@@ -14,14 +14,12 @@ const tokenBlacklistSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 86400, // 24시간 후 자동 삭제
+    expires: 24 * 60 * 60, // 24시간 후 자동 삭제
   },
 });
 
 // 인덱스 생성
 tokenBlacklistSchema.index({ token: 1 });
-tokenBlacklistSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+tokenBlacklistSchema.index({ createdAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 });
 
-const TokenBlacklist = mongoose.model('TokenBlacklist', tokenBlacklistSchema);
-
-export default TokenBlacklist;
+export const TokenBlacklist = mongoose.model('TokenBlacklist', tokenBlacklistSchema);

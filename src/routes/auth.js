@@ -1,16 +1,18 @@
-import express from 'express';
+import { Router } from 'express';
 import { signup, login, refresh, createAdmin, logout } from '../controllers/authController.js';
-import { verifyToken, verifyRefreshToken } from '../middleware/authMiddleware.js';
-import { isAdmin } from '../middleware/roleMiddleware.js';
+import { verifyToken, isAdmin, verifyRefreshTokenMiddleware } from '../middleware/authMiddleware.js';
+import { defaultLimiter, loginLimiter, signupLimiter, refreshLimiter } from '../middleware/rateLimitMiddleware.js';
 
-const router = express.Router();
+const router = Router();
+
+router.use(defaultLimiter);
 
 /**
  * @swagger
  * /auth/signup:
  *   post:
+ *     summary: 회원가입
  *     tags: [Auth]
- *     summary: 새로운 사용자 등록
  *     requestBody:
  *       required: true
  *       content:
@@ -34,16 +36,18 @@ const router = express.Router();
  *       400:
  *         description: 잘못된 요청
  *       409:
- *         description: 중복된 사용자
+ *         description: 중복된 사용자 이름
+ *       429:
+ *         description: 너무 많은 요청
  */
-router.post('/signup', signup);
+router.post('/signup', signupLimiter, signup);
 
 /**
  * @swagger
  * /auth/login:
  *   post:
+ *     summary: 로그인
  *     tags: [Auth]
- *     summary: 사용자 로그인
  *     requestBody:
  *       required: true
  *       content:
@@ -61,17 +65,21 @@ router.post('/signup', signup);
  *     responses:
  *       200:
  *         description: 로그인 성공
+ *       400:
+ *         description: 잘못된 요청
  *       401:
  *         description: 인증 실패
+ *       429:
+ *         description: 너무 많은 요청
  */
-router.post('/login', login);
+router.post('/login', loginLimiter, login);
 
 /**
  * @swagger
  * /auth/refresh:
  *   post:
+ *     summary: 토큰 갱신
  *     tags: [Auth]
- *     summary: 액세스 토큰 갱신
  *     requestBody:
  *       required: true
  *       content:
@@ -86,17 +94,21 @@ router.post('/login', login);
  *     responses:
  *       200:
  *         description: 토큰 갱신 성공
+ *       400:
+ *         description: 잘못된 요청
  *       401:
- *         description: 유효하지 않은 토큰
+ *         description: 인증 실패
+ *       429:
+ *         description: 너무 많은 요청
  */
-router.post('/refresh', verifyRefreshToken, refresh);
+router.post('/refresh', refreshLimiter, verifyRefreshTokenMiddleware, refresh);
 
 /**
  * @swagger
  * /auth/admin:
  *   post:
+ *     summary: 관리자 계정 생성
  *     tags: [Auth]
- *     summary: 관리자 계정 생성 (관리자 권한 필요)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -119,10 +131,14 @@ router.post('/refresh', verifyRefreshToken, refresh);
  *     responses:
  *       201:
  *         description: 관리자 계정 생성 성공
+ *       400:
+ *         description: 잘못된 요청
  *       401:
- *         description: 인증되지 않은 요청
+ *         description: 인증 실패
  *       403:
  *         description: 권한 없음
+ *       429:
+ *         description: 너무 많은 요청
  */
 router.post('/admin', verifyToken, isAdmin, createAdmin);
 
@@ -130,15 +146,17 @@ router.post('/admin', verifyToken, isAdmin, createAdmin);
  * @swagger
  * /auth/logout:
  *   post:
- *     tags: [Auth]
  *     summary: 로그아웃
+ *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: 로그아웃 성공
  *       401:
- *         description: 인증되지 않은 요청
+ *         description: 인증 실패
+ *       429:
+ *         description: 너무 많은 요청
  */
 router.post('/logout', verifyToken, logout);
 

@@ -1,13 +1,13 @@
-import bcrypt from "bcrypt";
-import { generateAccessToken, generateRefreshToken, extractTokenFromHeader } from "../utils/jwt.js";
-import User from "../models/User.js";
-import TokenBlacklist from "../models/TokenBlacklist.js";
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { User } from '../models/User.js';
+import { TokenBlacklist } from '../models/TokenBlacklist.js';
+import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js';
 
 export const signup = async (req, res) => {
   try {
     const { username, password, nickname } = req.body;
 
-    // 필수 필드 검증
     if (!username || !password || !nickname) {
       return res.status(400).json({
         code: 'MISSING_FIELD',
@@ -15,7 +15,6 @@ export const signup = async (req, res) => {
       });
     }
 
-    // 기존 사용자 확인
     const existingUser = await User.findOne({ username });
     if (existingUser) {
       return res.status(409).json({
@@ -24,11 +23,7 @@ export const signup = async (req, res) => {
       });
     }
 
-    // 비밀번호 해싱
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // 새 사용자 생성
+    const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       username,
       password: hashedPassword,
@@ -36,14 +31,11 @@ export const signup = async (req, res) => {
       authorities: [{ authorityName: 'ROLE_USER' }]
     });
 
-    // 응답 데이터 구성
-    const responseData = {
+    res.status(201).json({
       username: user.username,
       nickname: user.nickname,
       authorities: user.authorities
-    };
-
-    res.status(201).json(responseData);
+    });
   } catch (error) {
     console.error('회원가입 에러:', error);
     res.status(500).json({
@@ -57,16 +49,14 @@ export const login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // 필수 필드 검증
     if (!username || !password) {
       return res.status(400).json({
         code: 'MISSING_FIELD',
-        message: '사용자 이름과 비밀번호를 모두 입력해주세요.'
+        message: '모든 필드를 입력해주세요.'
       });
     }
 
-    // 사용자 찾기
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username }).select('+password +authorities');
     if (!user) {
       return res.status(401).json({
         code: 'INVALID_CREDENTIALS',
@@ -74,7 +64,6 @@ export const login = async (req, res) => {
       });
     }
 
-    // 비밀번호 검증
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
       return res.status(401).json({
@@ -83,17 +72,13 @@ export const login = async (req, res) => {
       });
     }
 
-    // 토큰 생성
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    const refreshToken = generateRefreshToken();
 
-    // 리프레시 토큰 저장
     user.refreshToken = refreshToken;
-    user.lastLogin = new Date();
     await user.save();
 
-    // 응답 데이터 구성
-    res.json({
+    res.status(200).json({
       token: accessToken
     });
   } catch (error) {
@@ -108,39 +93,45 @@ export const login = async (req, res) => {
 export const refresh = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    
     if (!refreshToken) {
-      return res.status(400).json({ 
-        code: 'NO_REFRESH_TOKEN',
-        message: '리프레시 토큰이 필요합니다.' 
+      return res.status(400).json({
+        code: 'REFRESH_TOKEN_REQUIRED',
+        message: '리프레시 토큰이 필요합니다.',
       });
     }
 
-    // 토큰 검증 및 사용자 정보 가져오기
-    const user = await User.findOne({ refreshToken });
+    const user = await User.findById(req.user.id);
     if (!user) {
-      return res.status(401).json({ 
-        code: 'INVALID_REFRESH_TOKEN',
-        message: '유효하지 않은 리프레시 토큰입니다.' 
+      return res.status(401).json({
+        code: 'USER_NOT_FOUND',
+        message: '사용자를 찾을 수 없습니다.',
       });
     }
 
-    // 새로운 토큰 발급
+    // 이전 리프레시 토큰을 블랙리스트에 추가
+    await TokenBlacklist.create({
+      token: refreshToken,
+      reason: 'REFRESH'
+    });
+
+    // 새로운 토큰 생성
     const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
+    const newRefreshToken = generateRefreshToken();
 
-    // DB에 새로운 리프레시 토큰 저장
-    user.refreshToken = newRefreshToken;
-    await user.save();
+    // 사용자 정보 업데이트
+    await User.findByIdAndUpdate(user.id, { refreshToken: newRefreshToken });
 
-    res.json({
-      token: newAccessToken
+    return res.status(200).json({
+      code: 'SUCCESS',
+      message: '토큰이 성공적으로 갱신되었습니다.',
+      token: newAccessToken,
+      refreshToken: newRefreshToken
     });
   } catch (error) {
-    console.error("토큰 갱신 에러:", error);
-    res.status(500).json({ 
+    console.error('토큰 갱신 에러:', error);
+    return res.status(500).json({
       code: 'SERVER_ERROR',
-      message: "서버 오류가 발생했습니다." 
+      message: '서버 오류가 발생했습니다.',
     });
   }
 };
@@ -149,7 +140,6 @@ export const createAdmin = async (req, res) => {
   try {
     const { username, password, nickname } = req.body;
 
-    // 필수 필드 검증
     if (!username || !password || !nickname) {
       return res.status(400).json({
         code: 'MISSING_FIELD',
@@ -157,7 +147,6 @@ export const createAdmin = async (req, res) => {
       });
     }
 
-    // 기존 사용자 확인
     const existingUser = await User.findOne({ username });
     if (existingUser) {
       return res.status(409).json({
@@ -166,11 +155,7 @@ export const createAdmin = async (req, res) => {
       });
     }
 
-    // 비밀번호 해싱
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // 관리자 사용자 생성
+    const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       username,
       password: hashedPassword,
@@ -181,11 +166,18 @@ export const createAdmin = async (req, res) => {
       ]
     });
 
-    // 응답 데이터 구성
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken();
+
+    user.refreshToken = refreshToken;
+    await user.save();
+
     const responseData = {
       username: user.username,
       nickname: user.nickname,
-      authorities: user.authorities
+      authorities: user.authorities,
+      accessToken,
+      refreshToken
     };
 
     res.status(201).json(responseData);
@@ -200,15 +192,15 @@ export const createAdmin = async (req, res) => {
 
 export const logout = async (req, res) => {
   try {
-    const token = extractTokenFromHeader(req);
+    const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
-      return res.status(400).json({
-        code: 'NO_TOKEN',
-        message: '토큰이 필요합니다.'
+      return res.status(401).json({
+        code: 'INVALID_TOKEN',
+        message: '유효하지 않은 토큰입니다.',
       });
     }
 
-    // 현재 토큰을 블랙리스트에 추가
+    // 토큰을 블랙리스트에 추가
     await TokenBlacklist.create({
       token,
       reason: 'LOGOUT'
@@ -216,22 +208,18 @@ export const logout = async (req, res) => {
 
     // 사용자의 리프레시 토큰 제거
     if (req.user) {
-      const user = await User.findById(req.user._id);
-      if (user) {
-        user.refreshToken = null;
-        await user.save();
-      }
+      await User.findByIdAndUpdate(req.user.id, { refreshToken: null });
     }
 
-    res.json({
+    return res.status(200).json({
       code: 'SUCCESS',
-      message: '로그아웃 되었습니다.'
+      message: '로그아웃되었습니다.',
     });
   } catch (error) {
     console.error('로그아웃 에러:', error);
-    res.status(500).json({
+    return res.status(500).json({
       code: 'SERVER_ERROR',
-      message: '서버 오류가 발생했습니다.'
+      message: '서버 오류가 발생했습니다.',
     });
   }
 };

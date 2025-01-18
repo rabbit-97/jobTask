@@ -5,68 +5,57 @@ const userSchema = new mongoose.Schema(
   {
     username: {
       type: String,
-      required: [true, '사용자 이름은 필수입니다.'],
+      required: true,
       unique: true,
-      trim: true,
     },
     password: {
       type: String,
-      required: [true, '비밀번호는 필수입니다.'],
-      minlength: [8, '비밀번호는 최소 8자 이상이어야 합니다.'],
+      required: true,
+      select: false,
     },
     nickname: {
       type: String,
-      required: [true, '닉네임은 필수입니다.'],
-      trim: true,
+      required: true,
     },
     authorities: [
       {
         authorityName: {
           type: String,
           enum: ['ROLE_USER', 'ROLE_ADMIN'],
-          default: 'ROLE_USER',
+          required: true,
         },
       },
     ],
     refreshToken: {
       type: String,
-      default: null,
-    },
-    lastLogin: {
-      type: Date,
-      default: null,
+      select: false,
     },
   },
   {
     timestamps: true,
-    methods: {
-      // 비밀번호 검증 메서드
-      comparePassword: async function (candidatePassword) {
-        try {
-          console.log('비밀번호 비교:', {
-            candidatePassword,
-            hashedPassword: this.password,
-          });
-          const isMatch = await bcrypt.compare(candidatePassword, this.password);
-          console.log('비밀번호 비교 결과:', { isMatch });
-          return isMatch;
-        } catch (error) {
-          console.error('비밀번호 비교 에러:', error);
-          return false;
-        }
-      },
-    },
   },
 );
 
-// 민감한 정보를 JSON 변환 시 제외
-userSchema.methods.toJSON = function () {
-  const obj = this.toObject();
-  delete obj.password;
-  delete obj.refreshToken;
-  return obj;
+// 비밀번호 비교 메서드
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  try {
+    if (!this.password) {
+      console.error('비밀번호 비교 에러: 저장된 비밀번호가 없습니다.');
+      return false;
+    }
+
+    console.log('비밀번호 비교:', {
+      candidatePassword,
+      hashedPassword: this.password,
+    });
+
+    const isMatch = await bcrypt.compare(candidatePassword, this.password);
+    console.log('비밀번호 비교 결과:', { isMatch });
+    return isMatch;
+  } catch (error) {
+    console.error('비밀번호 비교 에러:', error);
+    return false;
+  }
 };
 
-const User = mongoose.model('User', userSchema);
-
-export default User;
+export const User = mongoose.model('User', userSchema);

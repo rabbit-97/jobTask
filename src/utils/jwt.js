@@ -4,8 +4,9 @@ import jwt from "jsonwebtoken";
 export const generateAccessToken = (user) => {
   return jwt.sign(
     {
-      id: user._id,
+      userId: user._id.toString(),
       username: user.username,
+      authorities: user.authorities,
       timestamp: Date.now()
     },
     process.env.JWT_ACCESS_SECRET,
@@ -14,11 +15,9 @@ export const generateAccessToken = (user) => {
 };
 
 // Refresh Token 생성
-export const generateRefreshToken = (user) => {
+export const generateRefreshToken = () => {
   return jwt.sign(
     {
-      id: user._id,
-      username: user.username,
       timestamp: Date.now()
     },
     process.env.JWT_REFRESH_SECRET,
@@ -32,13 +31,15 @@ export const verifyAccessToken = (token) => {
     return jwt.verify(token, process.env.JWT_ACCESS_SECRET);
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      const err = new Error('TOKEN_EXPIRED');
-      throw err;
-    } else if (error.name === 'JsonWebTokenError') {
-      const err = new Error('INVALID_TOKEN');
-      throw err;
+      throw {
+        code: 'TOKEN_EXPIRED',
+        message: '토큰이 만료되었습니다.'
+      };
     }
-    throw error;
+    throw {
+      code: 'INVALID_TOKEN',
+      message: '유효하지 않은 토큰입니다.'
+    };
   }
 };
 
@@ -48,13 +49,15 @@ export const verifyRefreshToken = (token) => {
     return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      const err = new Error('REFRESH_TOKEN_EXPIRED');
-      throw err;
-    } else if (error.name === 'JsonWebTokenError') {
-      const err = new Error('INVALID_REFRESH_TOKEN');
-      throw err;
+      throw {
+        code: 'REFRESH_TOKEN_EXPIRED',
+        message: '리프레시 토큰이 만료되었습니다.'
+      };
     }
-    throw error;
+    throw {
+      code: 'INVALID_REFRESH_TOKEN',
+      message: '유효하지 않은 리프레시 토큰입니다.'
+    };
   }
 };
 

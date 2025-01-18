@@ -1,9 +1,12 @@
 import express from "express";
+import cors from "cors";
 import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
-import connectDB from "./config/database.js";
+import { connectDB } from "./config/database.js";
 import authRouter from "./routes/auth.js";
+import { User } from "./models/User.js";
+import { TokenBlacklist } from "./models/TokenBlacklist.js";
 
 dotenv.config();
 
