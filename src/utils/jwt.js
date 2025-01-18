@@ -4,13 +4,14 @@ import jwt from "jsonwebtoken";
 export const generateAccessToken = (user) => {
   return jwt.sign(
     {
-      userId: user._id.toString(),
-      username: user.username,
-      authorities: user.authorities,
-      timestamp: Date.now()
+      sub: user._id.toString(),
+      authorities: user.authorities.map(auth => auth.authorityName)
     },
     process.env.JWT_ACCESS_SECRET,
-    { expiresIn: '15m' }
+    { 
+      algorithm: 'HS256',
+      expiresIn: process.env.JWT_ACCESS_EXPIRES || '15m'
+    }
   );
 };
 
@@ -18,10 +19,14 @@ export const generateAccessToken = (user) => {
 export const generateRefreshToken = () => {
   return jwt.sign(
     {
+      type: 'refresh',
       timestamp: Date.now()
     },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: '7d' }
+    { 
+      algorithm: 'HS256',
+      expiresIn: process.env.JWT_REFRESH_EXPIRES || '7d'
+    }
   );
 };
 

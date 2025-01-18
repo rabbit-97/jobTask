@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { signup, login, refresh, createAdmin, logout } from '../controllers/authController.js';
-import { verifyToken, isAdmin, verifyRefreshTokenMiddleware } from '../middleware/authMiddleware.js';
+import { verifyToken, verifyRefreshTokenMiddleware, validatePassword, validateRequiredFields } from '../middleware/authMiddleware.js';
+import { isAdmin } from '../middleware/roleMiddleware.js';
 import { defaultLimiter, loginLimiter, signupLimiter, refreshLimiter } from '../middleware/rateLimitMiddleware.js';
 
 const router = Router();
@@ -59,7 +60,7 @@ router.use(defaultLimiter);
  *       429:
  *         description: 너무 많은 요청
  */
-router.post('/signup', signupLimiter, signup);
+router.post('/signup', signupLimiter, validateRequiredFields, validatePassword, signup);
 
 /**
  * @swagger
@@ -177,7 +178,7 @@ router.post('/refresh', refreshLimiter, verifyRefreshTokenMiddleware, refresh);
  *       429:
  *         description: 너무 많은 요청
  */
-router.post('/admin', verifyToken, isAdmin, createAdmin);
+router.post('/admin', verifyToken, isAdmin, validatePassword, createAdmin);
 
 /**
  * @swagger

@@ -2,6 +2,19 @@ import { verifyAccessToken, verifyRefreshToken } from '../utils/jwt.js';
 import { User } from '../models/User.js';
 import { TokenBlacklist } from '../models/TokenBlacklist.js';
 
+export const validateRequiredFields = (req, res, next) => {
+  const { username, password, nickname } = req.body;
+
+  if (!username || !password || !nickname) {
+    return res.status(400).json({
+      code: 'MISSING_FIELD',
+      message: '모든 필드를 입력해주세요.'
+    });
+  }
+
+  next();
+};
+
 export const verifyToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -24,7 +37,7 @@ export const verifyToken = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(decoded.userId).select('+authorities');
+    const user = await User.findById(decoded.sub).select('+authorities');
     if (!user) {
       return res.status(401).json({
         code: 'UNAUTHORIZED',
@@ -55,31 +68,24 @@ export const verifyToken = async (req, res, next) => {
   }
 };
 
-export const isAdmin = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user.authorities) {
-      return res.status(401).json({
-        code: 'UNAUTHORIZED',
-        message: '인증이 필요합니다.'
-      });
-    }
+export const validatePassword = (req, res, next) => {
+  const { password } = req.body;
 
-    const isAdmin = req.user.authorities.some(auth => auth.authorityName === 'ROLE_ADMIN');
-    if (!isAdmin) {
-      return res.status(403).json({
-        code: 'FORBIDDEN',
-        message: '권한이 없습니다.'
-      });
-    }
-
-    next();
-  } catch (error) {
-    console.error('권한 검사 에러:', error);
-    res.status(500).json({
-      code: 'SERVER_ERROR',
-      message: '서버 오류가 발생했습니다.'
+  if (!password || typeof password !== 'string') {
+    return res.status(400).json({
+      code: 'INVALID_PASSWORD',
+      message: '비밀번호는 문자열이어야 합니다.'
     });
   }
+
+  if (password.length < 8) {
+    return res.status(400).json({
+      code: 'INVALID_PASSWORD',
+      message: '비밀번호는 최소 8자 이상이어야 합니다.'
+    });
+  }
+
+  next();
 };
 
 export const verifyRefreshTokenMiddleware = async (req, res, next) => {

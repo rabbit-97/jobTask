@@ -1,4 +1,4 @@
-import User from '../models/User.js';
+import { User } from '../models/User.js';
 
 /**
  * 특정 권한을 가진 사용자만 접근을 허용하는 미들웨어
