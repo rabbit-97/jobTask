@@ -1,4 +1,8 @@
 import jwt from "jsonwebtoken";
+import { tokenConfig } from '../config/token.js';
+
+const env = process.env.NODE_ENV || 'development';
+const config = tokenConfig[env];
 
 // Access Token 생성
 export const generateAccessToken = (user) => {
@@ -9,23 +13,25 @@ export const generateAccessToken = (user) => {
     },
     process.env.JWT_ACCESS_SECRET,
     { 
-      algorithm: 'HS256',
-      expiresIn: process.env.JWT_ACCESS_EXPIRES || '15m'
+      algorithm: config.access.algorithm,
+      expiresIn: config.access.expiresIn
     }
   );
 };
 
 // Refresh Token 생성
-export const generateRefreshToken = () => {
+export const generateRefreshToken = (userId) => {
   return jwt.sign(
     {
+      sub: userId,
       type: 'refresh',
+      jti: Math.random().toString(36).substring(7), // 토큰 고유 식별자
       timestamp: Date.now()
     },
     process.env.JWT_REFRESH_SECRET,
     { 
-      algorithm: 'HS256',
-      expiresIn: process.env.JWT_REFRESH_EXPIRES || '7d'
+      algorithm: config.refresh.algorithm,
+      expiresIn: config.refresh.expiresIn
     }
   );
 };

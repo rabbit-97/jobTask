@@ -73,13 +73,14 @@ export const login = async (req, res) => {
     }
 
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken();
+    const refreshToken = generateRefreshToken(user._id);
 
     user.refreshToken = refreshToken;
     await user.save();
 
     res.status(200).json({
-      token: accessToken
+      token: accessToken,
+      refreshToken: refreshToken
     });
   } catch (error) {
     console.error('로그인 에러:', error);
@@ -100,26 +101,29 @@ export const refresh = async (req, res) => {
       });
     }
 
-    const user = await User.findById(req.user.id);
-    if (!user) {
+    const decoded = verifyRefreshToken(refreshToken);
+    const user = await User.findById(decoded.sub).select('+authorities');
+    
+    if (!user || user.refreshToken !== refreshToken) {
       return res.status(401).json({
-        code: 'USER_NOT_FOUND',
-        message: '사용자를 찾을 수 없습니다.',
+        code: 'INVALID_REFRESH_TOKEN',
+        message: '유효하지 않은 리프레시 토큰입니다.',
       });
     }
 
-    // 이전 리프레시 토큰을 블랙리스트에 추가
+    // 이전 리프레시 토큰을 블랙리스트에 추가 (토큰 회전)
     await TokenBlacklist.create({
       token: refreshToken,
-      reason: 'REFRESH'
+      reason: 'ROTATION'
     });
 
     // 새로운 토큰 생성
     const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken();
+    const newRefreshToken = generateRefreshToken(user._id);
 
     // 사용자 정보 업데이트
-    await User.findByIdAndUpdate(user.id, { refreshToken: newRefreshToken });
+    user.refreshToken = newRefreshToken;
+    await user.save();
 
     return res.status(200).json({
       code: 'SUCCESS',
@@ -129,6 +133,12 @@ export const refresh = async (req, res) => {
     });
   } catch (error) {
     console.error('토큰 갱신 에러:', error);
+    if (error.code === 'REFRESH_TOKEN_EXPIRED') {
+      return res.status(401).json({
+        code: 'REFRESH_TOKEN_EXPIRED',
+        message: '리프레시 토큰이 만료되었습니다. 다시 로그인해주세요.',
+      });
+    }
     return res.status(500).json({
       code: 'SERVER_ERROR',
       message: '서버 오류가 발생했습니다.',
@@ -167,7 +177,7 @@ export const createAdmin = async (req, res) => {
     });
 
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken();
+    const refreshToken = generateRefreshToken(user._id);
 
     user.refreshToken = refreshToken;
     await user.save();
