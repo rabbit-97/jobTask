@@ -78,10 +78,23 @@ export const validatePassword = (req, res, next) => {
     });
   }
 
+  // 최소 8자 이상
   if (password.length < 8) {
     return res.status(400).json({
       code: 'INVALID_PASSWORD',
       message: '비밀번호는 최소 8자 이상이어야 합니다.'
+    });
+  }
+
+  // 영문, 숫자, 특수문자 조합 검사
+  const hasLetter = /[a-zA-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+  if (!hasLetter || !hasNumber || !hasSpecial) {
+    return res.status(400).json({
+      code: 'INVALID_PASSWORD',
+      message: '비밀번호는 영문, 숫자, 특수문자(!@#$%^&*(),.?":{}|<>)를 모두 포함해야 합니다.'
     });
   }
 

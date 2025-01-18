@@ -25,13 +25,13 @@ describe('Auth API Tests', () => {
 
   const validUser = {
     username: 'testuser',
-    password: '12341234',
+    password: 'Test1234!',
     nickname: '테스트유저'
   };
 
   const adminUser = {
     username: 'admin',
-    password: 'admin1234',
+    password: 'Admin1234!',
     nickname: '관리자',
     authorities: [
       { authorityName: 'ROLE_USER' },
@@ -99,7 +99,7 @@ describe('Auth API Tests', () => {
 
         const newAdmin = {
           username: 'newadmin',
-          password: 'admin5678',
+          password: 'NewAdmin123!',
           nickname: '새관리자'
         };
 
@@ -137,7 +137,7 @@ describe('Auth API Tests', () => {
 
         const newAdmin = {
           username: 'newadmin',
-          password: 'admin5678',
+          password: 'NewAdmin123!',
           nickname: '새관리자'
         };
 
@@ -151,7 +151,7 @@ describe('Auth API Tests', () => {
       test('인증 없이 관리자 계정 생성 시도시 실패', async () => {
         const newAdmin = {
           username: 'newadmin',
-          password: 'admin5678',
+          password: 'NewAdmin123!',
           nickname: '새관리자'
         };
 
