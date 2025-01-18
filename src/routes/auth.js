@@ -26,13 +26,32 @@ router.use(defaultLimiter);
  *             properties:
  *               username:
  *                 type: string
+ *                 description: 사용자 아이디
  *               password:
  *                 type: string
+ *                 description: 비밀번호
  *               nickname:
  *                 type: string
+ *                 description: 닉네임
  *     responses:
  *       201:
  *         description: 회원가입 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 username:
+ *                   type: string
+ *                 nickname:
+ *                   type: string
+ *                 authorities:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       authorityName:
+ *                         type: string
  *       400:
  *         description: 잘못된 요청
  *       409:
@@ -60,13 +79,21 @@ router.post('/signup', signupLimiter, signup);
  *             properties:
  *               username:
  *                 type: string
+ *                 description: 사용자 아이디
  *               password:
  *                 type: string
+ *                 description: 비밀번호
  *     responses:
  *       200:
  *         description: 로그인 성공
- *       400:
- *         description: 잘못된 요청
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   description: JWT 토큰
  *       401:
  *         description: 인증 실패
  *       429:
@@ -80,6 +107,8 @@ router.post('/login', loginLimiter, login);
  *   post:
  *     summary: 토큰 갱신
  *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -91,11 +120,18 @@ router.post('/login', loginLimiter, login);
  *             properties:
  *               refreshToken:
  *                 type: string
+ *                 description: 리프레시 토큰
  *     responses:
  *       200:
  *         description: 토큰 갱신 성공
- *       400:
- *         description: 잘못된 요청
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   description: 새로운 JWT 토큰
  *       401:
  *         description: 인증 실패
  *       429:
@@ -124,15 +160,16 @@ router.post('/refresh', refreshLimiter, verifyRefreshTokenMiddleware, refresh);
  *             properties:
  *               username:
  *                 type: string
+ *                 description: 관리자 아이디
  *               password:
  *                 type: string
+ *                 description: 비밀번호
  *               nickname:
  *                 type: string
+ *                 description: 닉네임
  *     responses:
  *       201:
  *         description: 관리자 계정 생성 성공
- *       400:
- *         description: 잘못된 요청
  *       401:
  *         description: 인증 실패
  *       403:

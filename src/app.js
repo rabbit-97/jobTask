@@ -2,11 +2,11 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
-import swaggerJsdoc from "swagger-jsdoc";
 import { connectDB } from "./config/database.js";
 import authRouter from "./routes/auth.js";
 import { User } from "./models/User.js";
 import { TokenBlacklist } from "./models/TokenBlacklist.js";
+import { specs } from './config/swagger.js';
 
 dotenv.config();
 
@@ -22,25 +22,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // 스웨거 설정
-const swaggerOptions = {
-  definition: {
-    openapi: "3.0.0",
-    info: {
-      title: "백엔드 온보딩 API",
-      version: "1.0.0",
-      description: "회원가입/로그인 API 문서",
-    },
-    servers: [
-      {
-        url: `http://localhost:${process.env.PORT || 3000}`,
-      },
-    ],
-  },
-  apis: ["./src/routes/*.js"],
-};
-
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 
 // 라우트 설정
 app.use("/auth", authRouter);
