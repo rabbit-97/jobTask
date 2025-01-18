@@ -46,12 +46,16 @@ npm install
 `.env` 파일을 프로젝트 루트에 생성하고 다음 내용을 설정합니다:
 
 ```
-NODE_ENV=development
+NODE_ENV=production
 PORT=3000
-MONGODB_URI=your_mongodb_atlas_uri
-JWT_ACCESS_SECRET=your_jwt_access_secret
-JWT_REFRESH_SECRET=your_jwt_refresh_secret
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<database>
+JWT_ACCESS_SECRET=your_jwt_access_secret_key
+JWT_REFRESH_SECRET=your_jwt_refresh_secret_key
+JWT_ACCESS_EXPIRES=15m
+JWT_REFRESH_EXPIRES=7d
 ```
+
+> 참고: 실제 값들은 보안을 위해 안전하게 관리되어야 합니다.
 
 ### 실행
 
@@ -79,7 +83,7 @@ API 문서는 Swagger UI를 통해 제공됩니다.
 서버 실행 후 다음 주소에서 확인할 수 있습니다:
 
 ```
-http://localhost:3000/api-docs
+http://13.125.49.254:3000/api-docs
 ```
 
 ### 주요 엔드포인트
